@@ -1,0 +1,9 @@
+n01685808 whiptail
+n01729322 hognose_snake
+n01843065 jacamar
+n01984695 spiny_lobster
+n02025239 ruddy_turnstone
+n02086240 Shih-Tzu
+n02089078 black-and-tan_coonhound
+n02090379 redbone
+n02089867 Walker_hound
