@@ -1,0 +1,705 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+
+    <meta charset="utf-8">
+    <title>
+        Object recognition results of multiple images
+    </title>
+    <script type="text/javascript" src="https://d3js.org/d3.v4.min.js"></script>
+    <script src="https://d3js.org/d3-zoom.v1.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="https://cdn.bootcss.com/jquery/2.2.4/jquery.min.js"></script>
+    <script src="https://cdn.bootcss.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+    <script src="bootstrap-table-master/dist/bootstrap-table.js"></script>
+    <link href="bootstrap-table-master/dist/bootstrap-table.css" rel="stylesheet" />
+
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/1ad6753a8b.js"></script>
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/fontawesome.css"
+          integrity="sha384-4aon80D8rXCGx9ayDt85LbyUHeMWd3UiBaWliBlJ53yzm9hqN21A+o1pqoyK04h+" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/brands.css"
+          integrity="sha384-BKw0P+CQz9xmby+uplDwp82Py8x1xtYPK3ORn/ZSoe6Dk3ETP59WCDnX+fI1XCKK" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <style type="text/css">
+        middle {
+            background: var(--background-color);
+            border-right: 1px solid var(--border-color);
+        }
+        right {
+            background: var(--background-color);
+            border-right: 1px solid var(--border-color);
+            border-left: 1px solid var(--border-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <header>
+            <div id="header-title-wrapper" style="width: 500px;">
+                <div>
+                    <div id="header-title" style="width: 200px;">object recognition</div>
+                </div>
+            </div>
+            <div class="header-content">
+                <span id="dataset-name" class="smalltext-header">dataset</span>
+                <div id="model-name" class="header-value">ImageNet</div>
+            </div>
+            <div class="header-content">
+                <span class="smalltext-header">model1</span>
+                <div id="model-name" class="header-value">VGG16</div>
+            </div>
+            <div class="header-content">
+                <span class="smalltext-header">model2</span>
+                <div id="model-name" class="header-value">ResNet</div>
+            </div>
+            <div class="header-content">
+                <span id="classes-name" class="smalltext-header">classes</span>
+                <div id="classes-value" class="header-value">30</div>
+            </div>
+
+            <div class="header-content">
+                <span id="instances-name" class="smalltext-header">instances</span>
+                <div id="instances-value" class="header-value">300</div>
+            </div>
+
+        </header>
+
+        <div id="main" >
+            <div id="left">
+                <div id="left-inner">
+                    <div id="neighbor" class="row clearfix">
+                    </div>                      
+                    <div id="left-inner-class-bar-wrapper" style="overflow:scroll; width:450px; height:450px;">
+                        <div id="toolbar">
+                            <button id="reset">Reset</button>
+                        </div>
+                        <table id="table1" class="table table-bordered"></table>
+                    </div>    
+                </div>
+            </div>
+            <div id="middle">
+                    <div><h2 align="center">Class Thumbnail</h2></div>
+                    <div id="middle_thumb"></div>
+            </div>
+            <div id="right">
+                <div id="right-inner1" style="overflow:scroll;">
+                    <div><h2 align="center">Information Comparison</h2></div>
+                </div>
+            </div>
+        </div>   
+    </div>
+    <script type="text/javascript">
+        d3.json("result_version_2.json", function (error, data) {
+
+            var tsne_svg = d3.select("#neighbor")
+                .append("svg")
+                .attr("width", 430)
+                .attr("height", 400);
+
+            var zoom = d3.zoom()
+                .on("zoom", zoomed);
+
+            tsne_svg.call(zoom);
+
+            var x, y, s;
+
+            var tsne_svg_width = tsne_svg.attr("width");
+            var tsne_svg_height = tsne_svg.attr("height");
+
+            var x_max = d3.max(data, function (d) { return parseFloat(d.view_X); });
+            var x_min = d3.min(data, function (d) { return parseFloat(d.view_X); });
+            var y_max = d3.max(data, function (d) { return parseFloat(d.view_Y); });
+            var y_min = d3.min(data, function (d) { return parseFloat(d.view_Y); });
+
+            var padding = 20
+
+            var xScale = d3.scaleLinear()
+                .domain([x_min, x_max])
+                .range([padding, tsne_svg_width - padding-30]);
+
+            var yScale = d3.scaleLinear()
+                .domain([y_min, y_max])
+                .range([padding, tsne_svg_height - padding]);
+
+            // color for each class
+            var color = d3.scaleSequential()
+                .domain([0, 30])
+                .interpolator(d3.interpolateRainbow); // color(i) returns rgb hex
+
+            var text = tsne_svg.append("g")
+                .attr("id", "text");
+
+            function test_opacity(value_lable) {
+                var ori_color = d3.color(color(value_lable));
+                ori_color.opacity = 0.1;
+                return ori_color;
+            }
+
+            var circles = tsne_svg
+                .append("g")
+                .attr("id", "plot")
+                .selectAll("circle")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("id", d => `circle_${d.picture_imageNet_ID}`)
+                .attr("cx", d => xScale(parseFloat(d.view_X)))
+                .attr("cy", d => yScale(parseFloat(d.view_Y)))
+                .attr("r", 5)
+                .attr("fill", d => color(parseInt(d.color_ID)))
+                .on("mouseover", d => {
+
+                    tsne_svg.select("#text")
+                        .selectAll("text")
+                        .remove();
+
+                    var mar_id = d.id;
+                    var mar_truelable = d.color_ID;
+
+                    tsne_svg.select("#plot")
+                        .selectAll("circle")
+                        .filter(function (d) { return d.color_ID == mar_truelable; })
+                        .transition()
+                        .attr("r", 8)
+                        .attr("fill", d => color(parseInt(d.color_ID)));
+                    tsne_svg.select("#plot")
+                        .selectAll("circle")
+                        .filter(function (d) { return d.color_ID != mar_truelable; })
+                        .transition()
+                        .attr("r", 5)
+                        .attr("fill", d => test_opacity(parseInt(d.color_ID)));
+
+                    for (var i = 0; i < data.length; i++) {
+                        var label = data[i].true_label;
+                        if (label == d.true_label) {
+                            id = data[i].picture_imageNet_ID;
+                            var text_x = d3.select(`#circle_${id}`).attr("cx");
+                            var text_y = d3.select(`#circle_${id}`).attr("cy");
+                            text.append("text")
+                                .text(data[i].true_label)
+                                .attr("id", `test_${data[i].picture_imageNet_ID}`)
+                                .attr("x", text_x)
+                                .attr("y", text_y)
+                                .attr("transform", "translate(10, 10)")
+                                .attr("font-family", "sans-serif")
+                                .attr("font-size", "11px")
+                                .attr("fill", color(parseInt(data[i].color_ID)));
+                        }
+                    }
+                })
+                .on("mouseout", () => {
+                    tsne_svg.select("#plot")
+                        .selectAll("circle")
+                        .attr("r", 4)
+                        .attr("fill", d => color(parseInt(d.color_ID)));
+                    tsne_svg.select("#text")
+                        .selectAll("text")
+                        .remove();
+
+                })
+                .on("click", d => {
+                    d3.select("#middle_thumb")
+                        .selectAll("svg")
+                        .remove();
+
+                    for (var i = 0; i < data.length; ++i) {
+                        var label = data[i].true_label;
+                        if (label == d.true_label) {
+                            var id = data[i].picture_imageNet_ID;  
+ 
+                            var svg = d3.select("#middle_thumb").append("svg")
+                                .attr('id', `SVG_${id}`)
+                                .attr("width", "150px")
+                                .attr("height", "150px");
+
+                            svg.append("text")
+                                .attr("x", 37)
+                                .attr("y", 15)
+                                .attr("align", "center")
+                                .attr("font-family", "sans-serif")
+                                .attr("font-size", "15px")
+                                .text(`${id}`);
+
+                            var svg_img = svg.append('image')
+                                .attr('image-rendering', 'optimizeQuality')
+                                .attr('id',`${id}`)
+                                .attr('x', '30')
+                                .attr('y', '20')
+                                .attr("preserveAspectRatio", "none")
+                                .attr('height', 120)
+                                .attr('width', 120)
+                                .attr('xlink:href', `new_umap_image/${id}.JPEG`);
+      
+                        }
+                    }
+
+                    d3.select(`#heatmap_${d.picture_imageNet_ID}`).remove();
+                    d3.select(`#right-inner-${d.picture_imageNet_ID}`).remove();
+                    
+
+                    d3.select("#right-inner1").append("div")
+                        .attr("id", `right-inner-${d.picture_imageNet_ID}`);
+
+                    d3.select("#right-inner1").append("div")
+                        .attr("id", `heatmap_${d.picture_imageNet_ID}`)
+                        .style("display","flex");
+
+                    var size = 190
+
+                    var svg1 = d3.select(`#heatmap_${d.picture_imageNet_ID}`).append("svg")
+                        .attr('id', `SVG_${d.picture_imageNet_ID}`)
+                        .attr("width", size)
+                        .attr("height", size)
+                        .call(d3.zoom().on("zoom", function () {
+                            container1.attr("transform", d3.event.transform);
+                        }));
+
+                    svg1.append("text")
+                        .attr("x", 35)
+                        .attr("y", 15)
+                        .attr("font-family", "sans-serif")
+                        .attr("font-size", "18px")
+                        .text("Select Image");
+
+                    var container1 = svg1.append("g");
+
+                    container1.append('image')
+                        .attr('image-rendering', 'optimizeQuality')
+                        .attr('x', 10)
+                        .attr('y', 20)
+                        .attr("preserveAspectRatio", "none")
+                        .attr('height', 170)
+                        .attr('width', 170)
+                        .attr('xlink:href', `new_umap_image/${d.picture_imageNet_ID}.JPEG`);
+
+                    var svg2 = d3.select(`#heatmap_${d.picture_imageNet_ID}`).append("svg")
+                        .attr('id', `SVG_${d.model_1_heatmap_ID}`)
+                        .attr("width", size)
+                        .attr("height", size)
+                        .call(d3.zoom().on("zoom", function () {
+                            container2.attr("transform", d3.event.transform);
+                        }));
+
+                    svg2.append("text")
+                        .attr("x", 35)
+                        .attr("y", 15)
+                        .attr("font-family", "sans-serif")
+                        .attr("font-size", "18px")
+                        .text("M1 Heatmap");
+
+                    var container2 = svg2.append("g");
+
+                    container2.append('image')
+                        .attr("preserveAspectRatio", "none")
+                        .attr('image-rendering', 'optimizeQuality')
+                        .attr('x', '10')
+                        .attr('y', '20')
+                        .attr('height', 170)
+                        .attr('width', 170)
+                        .attr('xlink:href', `img_grad_cam/${d.model_1_heatmap_ID}.JPEG`);
+
+                    var svg3 = d3.select(`#heatmap_${d.picture_imageNet_ID}`).append("svg")
+                        .attr('id', `SVG_${d.model_2_heatmap_ID}`)
+                        .attr("width", size)
+                        .attr("height", size)
+                        .call(d3.zoom().on("zoom", function () {
+                            container3.attr("transform", d3.event.transform);
+                        }));
+
+                    svg3.append("text")
+                        .attr("x", 35)
+                        .attr("y", 15)
+                        .attr("font-family", "sans-serif")
+                        .attr("font-size", "18px")
+                        .text("M2 Heatmap");
+
+                    var container3 = svg3.append("g");
+                    container3.append('image')
+                        .attr('image-rendering', 'optimizeQuality')
+                        .attr("preserveAspectRatio", "none")
+                        .attr('x', '10')
+                        .attr('y', '20')
+                        .attr('height', 170)
+                        .attr('width', 170)
+                        .attr('xlink:href', `img_grad_cam/${d.model_2_heatmap_ID}.JPEG`);
+
+                    var svg4 = d3.select(`#heatmap_${d.picture_imageNet_ID}`).append("svg")
+                        .attr('id', `SVG_${d.combine_heatmap_ID}`)
+                        .attr("width", size)
+                        .attr("height", size)
+                        .call(d3.zoom().on("zoom", function () {
+                            container4.attr("transform", d3.event.transform);
+                        }));
+
+                    svg4.append("text")
+                        .attr("x", 15)
+                        .attr("y", 15)
+                        .attr("font-family", "sans-serif")
+                        .attr("font-size", "18px")
+                        .text("Combine Heatmap");
+
+                    var container4 = svg4.append("g");
+                    container4.append('image')
+                        .attr('image-rendering', 'optimizeQuality')
+                        .attr("preserveAspectRatio", "none")
+                        .attr('x', '10')
+                        .attr('y', '20')
+                        .attr('height', 170)
+                        .attr('width', 170)
+                        .attr('xlink:href', `img_grad_cam/${d.combine_heatmap_ID}.JPEG`);
+
+                    
+
+                    d3.select(`#right-inner-${d.picture_imageNet_ID}`)
+                        .append("table")
+                        .attr("id", `table_${d.picture_imageNet_ID}`)
+                        .attr("class", "table table-bordered");
+
+                    var model1 = d.predict_lable_model_1 + "&nbsp;&nbsp;&nbsp;Acc: &nbsp;&nbsp;" + d.prop_model_1;
+                    var model2 = d.predict_lable_model_2 + "&nbsp;&nbsp;&nbsp;Acc: &nbsp;&nbsp;" + d.prop_model_2;
+
+                    var column2 = [{
+                        field: 'picture_imageNet_ID',
+                        title: 'FigureId',
+                    }, {
+                        field: 'true_label',
+                        title: 'Class',
+                    }, {
+                        field: 'prop_model_1',
+                        title: 'M1 Prediction',
+                    }, {
+                        field: 'prop_model_2',
+                        title: 'M2 Prediction',
+                    },{
+                        field: 'button',
+                        title: 'Delete',
+                        events: operateEvents,
+                        formatter: operateFormatter
+                    }];
+                    var data2 = [{
+                        picture_imageNet_ID: d.picture_imageNet_ID,
+                        true_label: d.true_label,
+                        prop_model_1: model1,
+                        prop_model_2: model2
+                    }];
+                    $(`#table_${d.picture_imageNet_ID}`).bootstrapTable({
+                        columns: column2,
+                        data: data2,
+                    });
+                });
+
+            function zoomed() {
+
+                var new_x_scale = d3.event.transform.rescaleX(xScale);
+                var new_y_scale = d3.event.transform.rescaleY(yScale);
+
+                circles
+                    .attr("cx", function (d) {
+                        return new_x_scale(parseFloat(d.view_X))
+                    })
+                    .attr("cy", function (d) {
+                        return new_y_scale(parseFloat(d.view_Y))
+                    });
+            }
+        });
+
+        function operateFormatter(value, row, index) {
+            return [
+                '<button type="button" class="btn btn-default" id="rowDel">delete</button>'
+            ].join('');
+        };
+        window.operateEvents = {
+            'click #rowDel': function (e, value, row, index) {
+                d3.select(`#heatmap_${row.picture_imageNet_ID}`).remove();
+                d3.select(`#right-inner-${row.picture_imageNet_ID}`).remove();
+            }
+        };
+
+        var click_row;
+        var column1 = [{
+            field: 'picture_imageNet_ID',
+            title: 'FigureId',
+            sortable: true
+        }, {
+                field: 'true_label',
+            title: 'Class',
+            sortable: true
+        }, {
+            field: 'predict_lable_model_1',
+            title: 'M1 Prediction',
+            sortable: true
+        }, {
+            field: 'predict_lable_model_2',
+            title: 'M2 Prediction',
+            sortable: true
+            }];
+        $('#table1').bootstrapTable({
+            url: 'result_version_2.json',
+            toolbar: "#toolbar",
+            queryParams: "queryParams",
+            pagination: true,
+            search: true,
+            pageNumber: 1,
+            pageSize: 10,
+            pageList: [10, 25, 50, 100],
+            minimumCountColumns: 2,
+            clickToSelect: true,
+            columns: column1,
+            onSort: function (name, order) {
+                $('#table1').bootstrapTable('refreshOptions', {
+                    sortName: name,
+                    sortOrder: order
+                });
+            },
+            onClickRow: function (row) {
+                d3.json("result_version_2.json", function (error, data) {
+                    d3.select("#middle_thumb")
+                        .selectAll("svg")
+                        .remove();
+
+                    d3.select("#text")
+                        .selectAll("text")
+                        .remove();
+
+                    var mar_truelable = row.color_ID;
+                    var mar_id = row.picture_imageNet_ID;
+
+                    function test_opacity(value_lable) {
+                        var ori_color = d3.color(color(value_lable));
+                        ori_color.opacity = 0.1;
+                        return ori_color;
+                    }
+
+                    var color = d3.scaleSequential()
+                        .domain([0, 30])
+                        .interpolator(d3.interpolateRainbow);
+
+                    var tsne_svg = d3.select("#neighbor");
+
+                    var text = d3.select("#text")
+
+                    tsne_svg.select("#plot")
+                        .selectAll("circle")
+                        .filter(function (d) { return d.color_ID == mar_truelable; })
+                        .transition()
+                        .attr("r", 5)
+                        .attr("fill", d => color(parseInt(d.color_ID)));
+                    tsne_svg.select("#plot")
+                        .selectAll("circle")
+                        .filter(function (d) { return d.color_ID != mar_truelable; })
+                        .transition()
+                        .attr("r", 5)
+                        .attr("fill", d => test_opacity(parseInt(d.color_ID)));
+                    tsne_svg.select("#plot")
+                        .selectAll("circle")
+                        .filter(function (d) { return d.picture_imageNet_ID == mar_id; })
+                        .transition()
+                        .attr("r", 9)
+                        .attr("fill", d => color(parseInt(d.color_ID)));
+
+                    for (var i = 0; i < data.length; i++) {
+                        var label = data[i].true_label;
+                        if (label == row.true_label) {
+                            id = data[i].picture_imageNet_ID;
+                            var text_x = d3.select(`#circle_${id}`).attr("cx");
+                            var text_y = d3.select(`#circle_${id}`).attr("cy");
+                            text.append("text")
+                                .text(data[i].true_label)
+                                .attr("id", `test_${data[i].picture_imageNet_ID}`)
+                                .attr("x", text_x)
+                                .attr("y", text_y)
+                                .attr("transform", "translate(10, 10)")
+                                .attr("font-family", "sans-serif")
+                                .attr("font-size", "11px")
+                                .attr("fill", color(parseInt(data[i].color_ID)));
+                        }
+                    }
+
+                    for (var i = 0; i < data.length; ++i) {
+                        var label = data[i].true_label;
+                        if (label == row.true_label) {
+                            id = data[i].picture_imageNet_ID;
+                            var svg = d3.select("#middle_thumb").append("svg")
+                                .attr('id', `SVG_${id}`)
+                                .attr("width", "150px")
+                                .attr("height", "150px");
+
+                            svg.append("text")
+                                .attr("x", 37)
+                                .attr("y", 15)
+                                .attr("align", "center")
+                                .attr("font-family", "sans-serif")
+                                .attr("font-size", "15px")
+                                .text(`${id}`);
+
+                            var svg_img = svg.append('image')
+                                .attr('image-rendering', 'optimizeQuality')
+                                .attr('id', `${id}`)
+                                .attr('x', '30')
+                                .attr('y', '20')
+                                .attr("preserveAspectRatio", "none")
+                                .attr('height', 120)
+                                .attr('width', 120)
+                                .attr('xlink:href', `new_umap_image/${id}.JPEG`);
+                        }
+                    }
+                    
+                    d3.select(`#heatmap_${row.picture_imageNet_ID}`).remove();
+                    d3.select(`#right-inner-${row.picture_imageNet_ID}`).remove();
+
+                    d3.select("#right-inner1").append("div")
+                        .attr("id", `right-inner-${row.picture_imageNet_ID}`);
+
+                    d3.select("#right-inner1").append("div")
+                        .attr("id", `heatmap_${row.picture_imageNet_ID}`)
+                        .style("display", "flex");
+
+                    var size = 190
+
+                    var svg1 = d3.select(`#heatmap_${row.picture_imageNet_ID}`).append("svg")
+                        .attr('id', `SVG_${row.picture_imageNet_ID}`)
+                        .attr("width", size)
+                        .attr("height", size)
+                        .call(d3.zoom().on("zoom", function () {
+                            container1.attr("transform", d3.event.transform);
+                        }));
+
+                    svg1.append("text")
+                        .attr("x", 35)
+                        .attr("y", 15)
+                        .attr("font-family", "sans-serif")
+                        .attr("font-size", "18px")
+                        .text("Select Image");
+
+                    var container1 = svg1.append("g");
+
+                    container1.append('image')
+                        .attr('image-rendering', 'optimizeQuality')
+                        .attr('x', 10)
+                        .attr('y', 20)
+                        .attr("preserveAspectRatio", "none")
+                        .attr('height', 170)
+                        .attr('width', 170)
+                        .attr('xlink:href', `new_umap_image/${row.picture_imageNet_ID}.JPEG`);
+
+                    var svg2 = d3.select(`#heatmap_${row.picture_imageNet_ID}`).append("svg")
+                        .attr('id', `SVG_${row.model_1_heatmap_ID}`)
+                        .attr("width", size)
+                        .attr("height", size)
+                        .call(d3.zoom().on("zoom", function () {
+                            container2.attr("transform", d3.event.transform);
+                        }));
+
+                    svg2.append("text")
+                        .attr("x", 35)
+                        .attr("y", 15)
+                        .attr("font-family", "sans-serif")
+                        .attr("font-size", "18px")
+                        .text("M1 Heatmap");
+
+                    var container2 = svg2.append("g");
+
+                    container2.append('image')
+                        .attr("preserveAspectRatio", "none")
+                        .attr('image-rendering', 'optimizeQuality')
+                        .attr('x', '10')
+                        .attr('y', '20')
+                        .attr('height', 170)
+                        .attr('width', 170)
+                        .attr('xlink:href', `img_grad_cam/${row.model_1_heatmap_ID}.JPEG`);
+
+                    var svg3 = d3.select(`#heatmap_${row.picture_imageNet_ID}`).append("svg")
+                        .attr('id', `SVG_${row.model_2_heatmap_ID}`)
+                        .attr("width", size)
+                        .attr("height", size)
+                        .call(d3.zoom().on("zoom", function () {
+                            container3.attr("transform", d3.event.transform);
+                        }));
+
+                    svg3.append("text")
+                        .attr("x", 35)
+                        .attr("y", 15)
+                        .attr("font-family", "sans-serif")
+                        .attr("font-size", "18px")
+                        .text("M2 Heatmap");
+
+                    var container3 = svg3.append("g");
+                    container3.append('image')
+                        .attr('image-rendering', 'optimizeQuality')
+                        .attr("preserveAspectRatio", "none")
+                        .attr('x', '10')
+                        .attr('y', '20')
+                        .attr('height', 170)
+                        .attr('width', 170)
+                        .attr('xlink:href', `img_grad_cam/${row.model_2_heatmap_ID}.JPEG`);
+
+                    var svg4 = d3.select(`#heatmap_${row.picture_imageNet_ID}`).append("svg")
+                        .attr('id', `SVG_${row.combine_heatmap_ID}`)
+                        .attr("width", size)
+                        .attr("height", size)
+                        .call(d3.zoom().on("zoom", function () {
+                            container4.attr("transform", d3.event.transform);
+                        }));
+
+                    svg4.append("text")
+                        .attr("x", 15)
+                        .attr("y", 15)
+                        .attr("font-family", "sans-serif")
+                        .attr("font-size", "18px")
+                        .text("Combine Heatmap");
+
+                    var container4 = svg4.append("g");
+                    container4.append('image')
+                        .attr('image-rendering', 'optimizeQuality')
+                        .attr("preserveAspectRatio", "none")
+                        .attr('x', '10')
+                        .attr('y', '20')
+                        .attr('height', 170)
+                        .attr('width', 170)
+                        .attr('xlink:href', `img_grad_cam/${row.combine_heatmap_ID}.JPEG`);
+
+                    d3.select(`#right-inner-${row.picture_imageNet_ID}`)
+                        .append("table")
+                        .attr("id", `table_${row.picture_imageNet_ID}`)
+                        .attr("class", "table table-bordered");
+
+                    var model1 = row.predict_lable_model_1 + "&nbsp;&nbsp;&nbsp;Acc: &nbsp;&nbsp;" + row.prop_model_1;
+                    var model2 = row.predict_lable_model_2 + "&nbsp;&nbsp;&nbsp;Acc: &nbsp;&nbsp;" + row.prop_model_2;
+
+                    var column3 = [{
+                        field: 'picture_imageNet_ID',
+                        title: 'FigureId',
+                    }, {
+                        field: 'true_label',
+                        title: 'Class',
+                    }, {
+                        field: 'prop_model_1',
+                        title: 'M1 Prediction',
+                    }, {
+                        field: 'prop_model_2',
+                        title: 'M2 Prediction',
+                    }, {
+                        field: 'button',
+                        title: 'Delete',
+                        events: operateEvents,
+                        formatter: operateFormatter
+                    }];
+                    var data3 = [{
+                        picture_imageNet_ID: row.picture_imageNet_ID,
+                        true_label: row.true_label,
+                        prop_model_1: model1,
+                        prop_model_2: model2
+                    }];
+                    $(`#table_${row.picture_imageNet_ID}`).bootstrapTable({
+                        columns: column3,
+                        data: data3,
+                    });
+                });
+            },    
+        }); 
+    </script>
+</body>
+</html>
